@@ -74,6 +74,12 @@ export interface WordpressPluginSettings {
    * Whether media links should be replaced after uploading to WordPress.
    */
   replaceMediaLinks: boolean;
+
+  /**
+   * Whether to wrap published HTML in Gutenberg block comments for native
+   * block-editor compatibility.
+   */
+  useGutenbergBlocks: boolean;
 }
 
 export const DEFAULT_SETTINGS: WordpressPluginSettings = {
@@ -88,6 +94,7 @@ export const DEFAULT_SETTINGS: WordpressPluginSettings = {
   commentConvertMode: CommentConvertMode.Ignore,
   enableHtml: false,
   replaceMediaLinks: true,
+  useGutenbergBlocks: false,
 }
 
 export async function upgradeSettings(

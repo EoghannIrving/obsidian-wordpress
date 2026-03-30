@@ -123,13 +123,19 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     updateMatterData?: (matter: MatterData) => void,
   }): Promise<WordPressClientResult<WordPressPublishResult>> {
     const { postParams, auth, updateMatterData } = params;
+    const { content: strippedContent, tags: hashTags } = extractTrailingHashtags(postParams.content);
+    postParams.content = strippedContent;
+    postParams.tags = [...new Set([...(postParams.tags ?? []), ...hashTags])];
     const tagTerms = await this.getTags(postParams.tags, auth);
     postParams.tags = tagTerms.map(term => term.id);
     await this.updatePostImages({
       auth,
       postParams
     });
-    const html = AppState.markdownParser.render(postParams.content);
+    let html = AppState.markdownParser.render(postParams.content);
+    if (this.plugin.settings.useGutenbergBlocks) {
+      html = htmlToGutenbergBlocks(html);
+    }
     const result = await this.publish(
       postParams.title ?? 'A post from Obsidian!',
       html,
@@ -191,51 +197,54 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     if (activeFile === null) {
       throw new Error(this.plugin.i18n.t('error_noActiveFile'));
     }
-    const { activeEditor } = this.plugin.app.workspace;
-    if (activeEditor && activeEditor.editor) {
-      // process images
-      const images = getImages(postParams.content);
-      for (const img of images) {
-        if (!img.srcIsUrl) {
-          img.src = decodeURI(img.src);
-          const fileName = img.src.split("/").pop();
-          if (fileName === undefined) {
-            continue;
-          }
-          const imgFile = this.plugin.app.metadataCache.getFirstLinkpathDest(img.src, fileName);
-          if (imgFile instanceof TFile) {
-            const content = await this.plugin.app.vault.readBinary(imgFile);
-            const fileType = fileTypeChecker.detectFile(content);
-            const result = await this.uploadMedia({
-              mimeType: fileType?.mimeType ?? 'application/octet-stream',
-              fileName: imgFile.name,
-              content: content
-            }, auth);
-            if (result.code === WordPressClientReturnCode.OK) {
-              if(img.width && img.height){
-                  postParams.content = postParams.content.replace(img.original, `![[${result.data.url}|${img.width}x${img.height}]]`);
-              }else if (img.width){
-                  postParams.content = postParams.content.replace(img.original, `![[${result.data.url}|${img.width}]]`);
-              }else{
-                  postParams.content = postParams.content.replace(img.original, `![[${result.data.url}]]`);
-              }
-            } else {
-              if (result.error.code === WordPressClientReturnCode.ServerInternalError) {
-                new Notice(result.error.message, ERROR_NOTICE_TIMEOUT);
-              } else {
-                new Notice(this.plugin.i18n.t('error_mediaUploadFailed', {
-                  name: imgFile.name,
-                }), ERROR_NOTICE_TIMEOUT);
-              }
-            }
-          }
-        } else {
-          // src is a url, skip uploading
+
+    const uploadCache = new Map<string, string>(); // local src → uploaded WP URL
+    const images = getImages(postParams.content);
+
+    for (const img of images) {
+      if (img.srcIsUrl) continue;
+
+      const decodedSrc = decodeURI(img.src);
+
+      let wpUrl = uploadCache.get(decodedSrc);
+      if (!wpUrl) {
+        // Use activeFile.path as sourcePath so relative links resolve correctly
+        const imgFile = this.plugin.app.metadataCache.getFirstLinkpathDest(decodedSrc, activeFile.path);
+        if (!(imgFile instanceof TFile)) continue;
+
+        const content = await this.plugin.app.vault.readBinary(imgFile);
+        const fileType = fileTypeChecker.detectFile(content);
+        const result = await this.uploadMedia({
+          mimeType: fileType?.mimeType ?? 'application/octet-stream',
+          fileName: imgFile.name,
+          content,
+        }, auth);
+
+        if (result.code !== WordPressClientReturnCode.OK) {
+          const msg = result.error.code === WordPressClientReturnCode.ServerInternalError
+            ? result.error.message
+            : this.plugin.i18n.t('error_mediaUploadFailed', { name: imgFile.name });
+          new Notice(msg, ERROR_NOTICE_TIMEOUT);
+          continue;
         }
+
+        wpUrl = result.data.url;
+        uploadCache.set(decodedSrc, wpUrl);
       }
-      if (this.plugin.settings.replaceMediaLinks) {
-        activeEditor.editor.setValue(postParams.content);
+
+      if (img.width && img.height) {
+        postParams.content = postParams.content.replace(img.original, `![[${wpUrl}|${img.width}x${img.height}]]`);
+      } else if (img.width) {
+        postParams.content = postParams.content.replace(img.original, `![[${wpUrl}|${img.width}]]`);
+      } else {
+        postParams.content = postParams.content.replace(img.original, `![[${wpUrl}]]`);
       }
+    }
+
+    // Separate concern: optionally rewrite the local note with uploaded URLs
+    if (this.plugin.settings.replaceMediaLinks) {
+      const { activeEditor } = this.plugin.app.workspace;
+      activeEditor?.editor?.setValue(postParams.content);
     }
   }
 
@@ -382,6 +391,95 @@ interface Image {
   endIndex: number;
   file?: TFile;
   content?: ArrayBuffer;
+}
+
+/**
+ * Wrap rendered HTML in Gutenberg block comments so WordPress stores each
+ * element as a native block rather than a freeform Classic block.
+ *
+ * Common block mappings:
+ *   <p>            → wp:paragraph
+ *   <h1>–<h6>      → wp:heading  {"level": N}
+ *   <ul>           → wp:list
+ *   <ol>           → wp:list     {"ordered": true}
+ *   <pre>          → wp:code
+ *   <blockquote>   → wp:quote
+ *   <figure>/<img> → wp:image
+ *   <hr>           → wp:separator
+ *   <table>        → wp:table
+ *   everything else → wp:html   (safe freeform fallback)
+ */
+function htmlToGutenbergBlocks(html: string): string {
+  const container = document.createElement('div');
+  container.innerHTML = html;
+  const blocks: string[] = [];
+
+  for (const node of Array.from(container.children)) {
+    const tag = node.tagName.toLowerCase();
+
+    switch (tag) {
+      case 'p':
+        blocks.push(`<!-- wp:paragraph -->\n${node.outerHTML}\n<!-- /wp:paragraph -->`);
+        break;
+
+      case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6': {
+        const level = parseInt(tag[1], 10);
+        blocks.push(`<!-- wp:heading {"level":${level}} -->\n${node.outerHTML}\n<!-- /wp:heading -->`);
+        break;
+      }
+
+      case 'ul':
+        blocks.push(`<!-- wp:list -->\n${node.outerHTML}\n<!-- /wp:list -->`);
+        break;
+
+      case 'ol':
+        blocks.push(`<!-- wp:list {"ordered":true} -->\n${node.outerHTML}\n<!-- /wp:list -->`);
+        break;
+
+      case 'pre':
+        blocks.push(`<!-- wp:code -->\n${node.outerHTML}\n<!-- /wp:code -->`);
+        break;
+
+      case 'blockquote':
+        blocks.push(`<!-- wp:quote -->\n${node.outerHTML}\n<!-- /wp:quote -->`);
+        break;
+
+      case 'figure':
+      case 'img': {
+        const figure = tag === 'img'
+          ? `<figure class="wp-block-image">${node.outerHTML}</figure>`
+          : node.outerHTML;
+        blocks.push(`<!-- wp:image -->\n${figure}\n<!-- /wp:image -->`);
+        break;
+      }
+
+      case 'hr':
+        blocks.push(`<!-- wp:separator -->\n${node.outerHTML}\n<!-- /wp:separator -->`);
+        break;
+
+      case 'table':
+        blocks.push(`<!-- wp:table -->\n<figure class="wp-block-table">${node.outerHTML}</figure>\n<!-- /wp:table -->`);
+        break;
+
+      default:
+        // Unknown element: safe freeform fallback
+        blocks.push(`<!-- wp:html -->\n${node.outerHTML}\n<!-- /wp:html -->`);
+    }
+  }
+
+  return blocks.join('\n\n');
+}
+
+function extractTrailingHashtags(content: string): { content: string; tags: string[] } {
+  // Match a trailing block of lines containing only #tags (no space after #, so headings are safe)
+  const trailingTagBlock = /\n+((?:[ \t]*#[\w/-]+[ \t]*\n?)+)$/;
+  const match = content.match(trailingTagBlock);
+  if (!match) return { content, tags: [] };
+  const tags = [...match[1].matchAll(/#([\w/-]+)/g)].map(m => m[1]);
+  return {
+    content: content.slice(0, content.length - match[0].length).trimEnd(),
+    tags,
+  };
 }
 
 function getImages(content: string): Image[] {

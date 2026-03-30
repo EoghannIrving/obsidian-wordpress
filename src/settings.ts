@@ -208,6 +208,18 @@ export class WordpressSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           }),
       );
+
+    new Setting(containerEl)
+      .setName(t('settings_useGutenbergBlocks'))
+      .setDesc(t('settings_useGutenbergBlocksDesc'))
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.useGutenbergBlocks)
+          .onChange(async (value) => {
+            this.plugin.settings.useGutenbergBlocks = value;
+            await this.plugin.saveSettings();
+          }),
+      );
 	}
 
 }

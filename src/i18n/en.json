@@ -81,6 +81,8 @@
   "settings_enableHtmlDesc": "Enable HTML tags in notes. This might cause XSS attack to your WordPress.",
   "settings_replaceMediaLinks": "Replace media links",
   "settings_replaceMediaLinksDesc": "Replace media links to WordPress URLs after uploading.",
+  "settings_useGutenbergBlocks": "Gutenberg block output",
+  "settings_useGutenbergBlocksDesc": "Wrap published HTML in Gutenberg block comments. Enables native block editing in WordPress. Disable for Classic Editor sites.",
   "loginModal_title": "WordPress Login",
   "loginModal_username": "Username",
   "loginModal_usernameDesc": "Username for <%= url %>",
