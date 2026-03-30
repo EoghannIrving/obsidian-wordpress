@@ -200,7 +200,6 @@ export abstract class AbstractWordPressClient implements WordPressClient {
 
     const uploadCache = new Map<string, string>(); // local src → uploaded WP URL
     const images = getImages(postParams.content);
-    const originalContent = postParams.content; // preserve for note write-back
 
     for (const img of images) {
       if (img.srcIsUrl) continue;
@@ -245,16 +244,20 @@ export abstract class AbstractWordPressClient implements WordPressClient {
 
     // Optionally rewrite the local note. Uses standard markdown syntax ![alt](url)
     // rather than wikilink syntax, so Obsidian can still display the remote image.
+    // Reads from the live editor (not postParams.content) so that any pre-publish
+    // transformations — e.g. stripped hashtags — are not written back to the note.
     if (this.plugin.settings.replaceMediaLinks && uploadCache.size > 0) {
-      let noteContent = originalContent;
-      for (const img of images) {
-        if (img.srcIsUrl) continue;
-        const wpUrl = uploadCache.get(decodeURI(img.src));
-        if (!wpUrl) continue;
-        noteContent = noteContent.replace(img.original, `![${img.altText ?? ''}](${wpUrl})`);
-      }
       const { activeEditor } = this.plugin.app.workspace;
-      activeEditor?.editor?.setValue(noteContent);
+      if (activeEditor?.editor) {
+        let noteContent = activeEditor.editor.getValue();
+        for (const img of images) {
+          if (img.srcIsUrl) continue;
+          const wpUrl = uploadCache.get(decodeURI(img.src));
+          if (!wpUrl) continue;
+          noteContent = noteContent.replace(img.original, `![${img.altText ?? ''}](${wpUrl})`);
+        }
+        activeEditor.editor.setValue(noteContent);
+      }
     }
   }
 
