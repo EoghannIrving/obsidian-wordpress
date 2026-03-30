@@ -77919,9 +77919,15 @@ function htmlToGutenbergBlocks(html3) {
     const tag = node.tagName.toLowerCase();
     switch (tag) {
       case "p":
-        blocks.push(`<!-- wp:paragraph -->
+        if (node.children.length === 1 && node.children[0].tagName === "IMG") {
+          blocks.push(`<!-- wp:image -->
+<figure class="wp-block-image">${node.children[0].outerHTML}</figure>
+<!-- /wp:image -->`);
+        } else {
+          blocks.push(`<!-- wp:paragraph -->
 ${node.outerHTML}
 <!-- /wp:paragraph -->`);
+        }
         break;
       case "h1":
       case "h2":
@@ -77981,41 +77987,42 @@ ${node.outerHTML}
   }
   return blocks.join("\n\n");
 }
+var TRAILING_TAG_BLOCK_RE = /\n+((?:[ \t]*#[\w/\-]+[ \t]*\n?)+)$/;
+var HASHTAG_RE = /#([\w/\-]+)/g;
+var IMG_STANDARD_RE = /(!\[(.*?)(?:\|(\d+)(?:x(\d+))?)?]\((.*?)\))/g;
+var IMG_WIKILINK_RE = /(!\[\[(.*?)(?:\|(\d+)(?:x(\d+))?)?]])/g;
 function extractTrailingHashtags(content) {
-  const trailingTagBlock = /\n+((?:[ \t]*#[\w/-]+[ \t]*\n?)+)$/;
-  const match3 = content.match(trailingTagBlock);
+  const match3 = content.match(TRAILING_TAG_BLOCK_RE);
   if (!match3) return { content, tags: [] };
-  const tags = [...match3[1].matchAll(/#([\w/-]+)/g)].map((m) => m[1]);
+  const tags = [...match3[1].matchAll(HASHTAG_RE)].map((m) => m[1]);
   return {
     content: content.slice(0, content.length - match3[0].length).trimEnd(),
     tags
   };
 }
 function getImages(content) {
+  var _a2, _b, _c, _d;
   const paths = [];
-  let regex = /(!\[(.*?)(?:\|(\d+)(?:x(\d+))?)?]\((.*?)\))/g;
-  let match3;
-  while ((match3 = regex.exec(content)) !== null) {
+  for (const match3 of content.matchAll(IMG_STANDARD_RE)) {
     paths.push({
       src: match3[5],
       altText: match3[2],
       width: match3[3],
       height: match3[4],
       original: match3[1],
-      startIndex: match3.index,
-      endIndex: match3.index + match3.length,
+      startIndex: (_a2 = match3.index) != null ? _a2 : 0,
+      endIndex: ((_b = match3.index) != null ? _b : 0) + match3[0].length,
       srcIsUrl: isValidUrl(match3[5])
     });
   }
-  regex = /(!\[\[(.*?)(?:\|(\d+)(?:x(\d+))?)?]])/g;
-  while ((match3 = regex.exec(content)) !== null) {
+  for (const match3 of content.matchAll(IMG_WIKILINK_RE)) {
     paths.push({
       src: match3[2],
       original: match3[1],
       width: match3[3],
       height: match3[4],
-      startIndex: match3.index,
-      endIndex: match3.index + match3.length,
+      startIndex: (_c = match3.index) != null ? _c : 0,
+      endIndex: ((_d = match3.index) != null ? _d : 0) + match3[0].length,
       srcIsUrl: isValidUrl(match3[2])
     });
   }

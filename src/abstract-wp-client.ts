@@ -432,7 +432,12 @@ function htmlToGutenbergBlocks(html: string): string {
 
     switch (tag) {
       case 'p':
-        blocks.push(`<!-- wp:paragraph -->\n${node.outerHTML}\n<!-- /wp:paragraph -->`);
+        // markdown-it wraps a standalone image in <p><img></p> — promote to wp:image
+        if (node.children.length === 1 && node.children[0].tagName === 'IMG') {
+          blocks.push(`<!-- wp:image -->\n<figure class="wp-block-image">${node.children[0].outerHTML}</figure>\n<!-- /wp:image -->`);
+        } else {
+          blocks.push(`<!-- wp:paragraph -->\n${node.outerHTML}\n<!-- /wp:paragraph -->`);
+        }
         break;
 
       case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6': {
@@ -485,12 +490,17 @@ function htmlToGutenbergBlocks(html: string): string {
   return blocks.join('\n\n');
 }
 
+// Module-level constants: avoids recompiling regexes on every publish
+const TRAILING_TAG_BLOCK_RE = /\n+((?:[ \t]*#[\w/\-]+[ \t]*\n?)+)$/;
+const HASHTAG_RE = /#([\w/\-]+)/g;
+const IMG_STANDARD_RE = /(!\[(.*?)(?:\|(\d+)(?:x(\d+))?)?]\((.*?)\))/g;
+const IMG_WIKILINK_RE = /(!\[\[(.*?)(?:\|(\d+)(?:x(\d+))?)?]])/g;
+
 function extractTrailingHashtags(content: string): { content: string; tags: string[] } {
   // Match a trailing block of lines containing only #tags (no space after #, so headings are safe)
-  const trailingTagBlock = /\n+((?:[ \t]*#[\w/-]+[ \t]*\n?)+)$/;
-  const match = content.match(trailingTagBlock);
+  const match = content.match(TRAILING_TAG_BLOCK_RE);
   if (!match) return { content, tags: [] };
-  const tags = [...match[1].matchAll(/#([\w/-]+)/g)].map(m => m[1]);
+  const tags = [...match[1].matchAll(HASHTAG_RE)].map(m => m[1]);
   return {
     content: content.slice(0, content.length - match[0].length).trimEnd(),
     tags,
@@ -500,32 +510,29 @@ function extractTrailingHashtags(content: string): { content: string; tags: stri
 function getImages(content: string): Image[] {
   const paths: Image[] = [];
 
-  // for ![Alt Text](image-url)
-  let regex = /(!\[(.*?)(?:\|(\d+)(?:x(\d+))?)?]\((.*?)\))/g;
-  let match;
-  while ((match = regex.exec(content)) !== null) {
+  // for ![Alt Text](image-url) — use matchAll to avoid mutable lastIndex state
+  for (const match of content.matchAll(IMG_STANDARD_RE)) {
     paths.push({
       src: match[5],
       altText: match[2],
       width: match[3],
       height: match[4],
       original: match[1],
-      startIndex: match.index,
-      endIndex: match.index + match.length,
+      startIndex: match.index ?? 0,
+      endIndex: (match.index ?? 0) + match[0].length,
       srcIsUrl: isValidUrl(match[5]),
     });
   }
 
   // for ![[image-name]]
-  regex = /(!\[\[(.*?)(?:\|(\d+)(?:x(\d+))?)?]])/g;
-  while ((match = regex.exec(content)) !== null) {
+  for (const match of content.matchAll(IMG_WIKILINK_RE)) {
     paths.push({
       src: match[2],
       original: match[1],
       width: match[3],
       height: match[4],
-      startIndex: match.index,
-      endIndex: match.index + match.length,
+      startIndex: match.index ?? 0,
+      endIndex: (match.index ?? 0) + match[0].length,
       srcIsUrl: isValidUrl(match[2]),
     });
   }
