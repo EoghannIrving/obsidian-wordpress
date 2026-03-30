@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-wordpress",
-	"version": "0.18.0",
-	"description": "A plugin for publishing Obsidian documents to WordPress.",
+	"name": "obsidian-wordpress-enhanced",
+	"version": "1.0.0",
+	"description": "Publish Obsidian notes to WordPress with Gutenberg block output, reliable image upload, and inline #tag support.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
@@ -23,7 +23,7 @@
 		"obsidian",
 		"plugin"
 	],
-	"author": "devbean",
+	"author": "EoghannIrving",
 	"license": "Apache-2.0",
 	"devDependencies": {
 		"@types/js-yaml": "4.0.9",

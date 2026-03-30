@@ -1,6 +1,89 @@
 # Changelog
 
-All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
+All notable changes to this project will be documented in this file.
+
+## [1.0.0] - 2026-03-30
+
+First release of the **WordPress Enhanced** fork, branched from
+[devbean/obsidian-wordpress](https://github.com/devbean/obsidian-wordpress)
+at v0.18.0 (last upstream commit: December 2023).
+
+### Added
+
+- **Gutenberg block output** — new opt-in setting wraps published HTML in
+  native Gutenberg block comments (`wp:paragraph`, `wp:heading`, `wp:image`,
+  `wp:list`, `wp:code`, `wp:quote`, `wp:separator`, `wp:table`, `wp:html`
+  fallback). Paragraphs containing only an image are promoted to `wp:image`.
+  Disabled by default for Classic Editor compatibility.
+
+- **Trailing `#hashtag` support** — `#hashtags` at the end of a note body are
+  extracted, stripped from the published content, and sent to WordPress as
+  tags. Deduplicated against any tags already in front matter. New tags are
+  created on WordPress automatically if they do not exist.
+
+### Fixed
+
+- **Image upload silently skipped** — the entire upload loop was gated on
+  `activeEditor` being non-null. Images now upload regardless of which pane
+  is focused.
+
+- **Wrong image resolution path** — `getFirstLinkpathDest` was called with
+  the image filename as the source path instead of the note path, causing
+  relative image links to fail vault resolution.
+
+- **Duplicate image uploads** — the same image referenced multiple times in
+  a note was uploaded once per occurrence. A per-publish URL cache now
+  ensures each image is uploaded at most once.
+
+- **Note write-back broke Obsidian image display** — after uploading, the
+  note was rewritten with `![[https://url]]` wikilink syntax, which Obsidian
+  cannot render for remote URLs. The note write-back now uses standard
+  markdown `![alt](url)`, which Obsidian renders correctly.
+
+- **Hashtags stripped from note on publish** — pre-publish content
+  transformations were incorrectly written back to the live note. The write-
+  back now reads from the live editor so only image paths are changed.
+
+- **Separator block recovery prompt in WordPress** — bare `<hr>` was sent;
+  Gutenberg requires `<hr class="wp-block-separator has-alpha-channel-opacity"/>`.
+
+- **MathJax re-initialised on every math expression** — `liteAdaptor`,
+  `RegisterHTMLHandler`, `new TeX()`, and `new SVG()` were called inside
+  `renderMath()`. These are now lazy singletons initialised once on first use.
+
+- **HTML attribute injection in image renderer** — `src`, `width`, and
+  `height` values were interpolated into the `<img>` tag without escaping.
+  An `escapeAttr()` helper now sanitises all three.
+
+- **`lastIndexOf` returning -1 in math block parser** — could cause
+  `slice(pos, -1)` to silently strip the last character of block math content.
+
+- **`console.log` of settings object during migration** — could expose saved
+  credentials in the developer console.
+
+- **Dead `defaultPostType` property in V2 migration** — set a property not
+  present on `WordpressPluginSettings`.
+
+- **Silent `saveSettings()` failures** — all settings `onChange` handlers now
+  show an Obsidian Notice if the save fails.
+
+- **Production build broken by upstream dependency changes** — `markdown-it`
+  v14 deep-path imports no longer resolve; updated to use `MarkdownIt` namespace
+  types. OAuth2 token event handler type error also fixed.
+
+### Changed
+
+- Regexes moved to module-level constants to avoid recompilation on every
+  publish or render pass.
+
+- `getImages()` converted from mutable `regex.exec()` while loops to
+  `String.prototype.matchAll()`.
+
+- Dead intermediate variable assignments removed from the settings UI.
+
+---
+
+## Prior history (original plugin)
 
 ## [0.18.0](https://github.com/devbean/obsidian-wordpress/compare/0.17.0...0.18.0) (2023-12-20)
 

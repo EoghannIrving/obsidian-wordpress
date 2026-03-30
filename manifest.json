@@ -1,10 +1,10 @@
 {
-	"id": "obsidian-wordpress",
-	"name": "WordPress",
-	"version": "0.18.0",
+	"id": "obsidian-wordpress-enhanced",
+	"name": "WordPress Enhanced",
+	"version": "1.0.0",
 	"minAppVersion": "1.1.1",
-	"description": "A plugin for publishing Obsidian documents to WordPress.",
-	"author": "devbean",
-	"isDesktopOnly": false,
-	"fundingUrl": "https://www.buymeacoffee.com/devbean"
+	"description": "Publish Obsidian notes to WordPress with Gutenberg block output, reliable image upload, and inline #tag support. Actively maintained fork of obsidian-wordpress.",
+	"author": "EoghannIrving",
+	"authorUrl": "https://github.com/EoghannIrving/obsidian-wordpress",
+	"isDesktopOnly": false
 }
