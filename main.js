@@ -77956,7 +77956,7 @@ ${figure}
       }
       case "hr":
         blocks.push(`<!-- wp:separator -->
-${node.outerHTML}
+<hr class="wp-block-separator has-alpha-channel-opacity"/>
 <!-- /wp:separator -->`);
         break;
       case "table":

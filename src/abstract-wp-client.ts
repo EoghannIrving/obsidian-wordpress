@@ -454,7 +454,9 @@ function htmlToGutenbergBlocks(html: string): string {
       }
 
       case 'hr':
-        blocks.push(`<!-- wp:separator -->\n${node.outerHTML}\n<!-- /wp:separator -->`);
+        // Gutenberg requires the wp-block-separator class to parse the block cleanly;
+        // bare <hr> triggers a "block recovery" prompt in the editor.
+        blocks.push(`<!-- wp:separator -->\n<hr class="wp-block-separator has-alpha-channel-opacity"/>\n<!-- /wp:separator -->`);
         break;
 
       case 'table':
