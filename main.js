@@ -77747,7 +77747,7 @@ var AbstractWordPressClient = class {
     return result;
   }
   async updatePostImages(params) {
-    var _a2, _b;
+    var _a2, _b, _c;
     const { postParams, auth } = params;
     const activeFile = this.plugin.app.workspace.getActiveFile();
     if (activeFile === null) {
@@ -77755,6 +77755,7 @@ var AbstractWordPressClient = class {
     }
     const uploadCache = /* @__PURE__ */ new Map();
     const images = getImages(postParams.content);
+    const originalContent = postParams.content;
     for (const img of images) {
       if (img.srcIsUrl) continue;
       const decodedSrc = decodeURI(img.src);
@@ -77785,9 +77786,16 @@ var AbstractWordPressClient = class {
         postParams.content = postParams.content.replace(img.original, `![[${wpUrl}]]`);
       }
     }
-    if (this.plugin.settings.replaceMediaLinks) {
+    if (this.plugin.settings.replaceMediaLinks && uploadCache.size > 0) {
+      let noteContent = originalContent;
+      for (const img of images) {
+        if (img.srcIsUrl) continue;
+        const wpUrl = uploadCache.get(decodeURI(img.src));
+        if (!wpUrl) continue;
+        noteContent = noteContent.replace(img.original, `![${(_b = img.altText) != null ? _b : ""}](${wpUrl})`);
+      }
       const { activeEditor } = this.plugin.app.workspace;
-      (_b = activeEditor == null ? void 0 : activeEditor.editor) == null ? void 0 : _b.setValue(postParams.content);
+      (_c = activeEditor == null ? void 0 : activeEditor.editor) == null ? void 0 : _c.setValue(noteContent);
     }
   }
   async publishPost(defaultPostParams) {
