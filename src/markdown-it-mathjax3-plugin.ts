@@ -1,10 +1,7 @@
 import MarkdownIt from 'markdown-it';
-import StateInline from 'markdown-it/lib/rules_inline/state_inline';
-import StateBlock from 'markdown-it/lib/rules_block/state_block';
 import { TeX } from 'mathjax-full/js/input/tex';
 import { AllPackages } from 'mathjax-full/js/input/tex/AllPackages';
 import { SVG } from 'mathjax-full/js/output/svg';
-import Token from 'markdown-it/lib/token';
 import { liteAdaptor } from 'mathjax-full/js/adaptors/liteAdaptor';
 import { RegisterHTMLHandler } from 'mathjax-full/js/handlers/html';
 import { AssistiveMmlHandler } from 'mathjax-full/js/a11y/assistive-mml';
@@ -41,12 +38,12 @@ function plugin(md: MarkdownIt): void {
   md.block.ruler.after('blockquote', blockTokenType, mathBlock, {
     alt: ['paragraph', 'reference', 'blockquote', 'list'],
   });
-  md.renderer.rules[inlineTokenType] = (tokens: Token[], idx: number) => {
+  md.renderer.rules[inlineTokenType] = (tokens: MarkdownIt.Token[], idx: number) => {
     return renderMath(tokens[idx].content, {
       display: false
     });
   };
-  md.renderer.rules[blockTokenType] = (tokens: Token[], idx: number) => {
+  md.renderer.rules[blockTokenType] = (tokens: MarkdownIt.Token[], idx: number) => {
     return renderMath(tokens[idx].content, {
       display: true
     });
@@ -77,7 +74,7 @@ function renderMath(content: string, convertOptions: ConvertOptions): string {
 
 // Test if potential opening or closing delimiter
 // Assumes that there is a '$' at state.src[pos]
-function isValidDelimiter(state: StateInline, pos: number) {
+function isValidDelimiter(state: MarkdownIt.StateInline, pos: number) {
   const max = state.posMax;
   let canOpen = true;
   let canClose = true;
@@ -103,7 +100,7 @@ function isValidDelimiter(state: StateInline, pos: number) {
   };
 }
 
-function mathInline(state: StateInline, silent: boolean) {
+function mathInline(state: MarkdownIt.StateInline, silent: boolean) {
   if (state.src[state.pos] !== '$') {
     return false;
   }
@@ -176,7 +173,7 @@ function mathInline(state: StateInline, silent: boolean) {
   return true;
 }
 
-function mathBlock(state: StateBlock, start: number, end: number, silent: boolean) {
+function mathBlock(state: MarkdownIt.StateBlock, start: number, end: number, silent: boolean) {
   let next: number;
   let lastPos: number;
   let found = false;
