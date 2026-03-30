@@ -10,6 +10,21 @@ import juice from 'juice';
 import { SafeAny } from './utils';
 import { MathJaxOutputType } from './plugin-settings';
 
+// Singleton MathJax resources — initialised once on first SVG render to avoid
+// re-creating the adaptor, handler, and jax instances on every math expression.
+let mjAdaptor: ReturnType<typeof liteAdaptor> | null = null;
+let mjInputJax: SafeAny = null;
+let mjOutputJax: SafeAny = null;
+
+function initMathJax(): void {
+  if (mjAdaptor !== null) return;
+  mjAdaptor = liteAdaptor();
+  const handler = RegisterHTMLHandler(mjAdaptor);
+  AssistiveMmlHandler(handler);
+  mjInputJax = new TeX({ packages: AllPackages });
+  mjOutputJax = new SVG({ fontCache: 'none' });
+}
+
 const inlineTokenType = 'math_inline';
 const blockTokenType = 'math_block';
 
@@ -52,16 +67,11 @@ function plugin(md: MarkdownIt): void {
 
 function renderMath(content: string, convertOptions: ConvertOptions): string {
   if (pluginOptions.outputType === MathJaxOutputType.SVG) {
-    const documentOptions = {
-      InputJax: new TeX({ packages: AllPackages }),
-      OutputJax: new SVG({ fontCache: 'none' })
-    };
-    const adaptor = liteAdaptor();
-    const handler = RegisterHTMLHandler(adaptor);
-    AssistiveMmlHandler(handler);
+    initMathJax();
+    const documentOptions = { InputJax: mjInputJax, OutputJax: mjOutputJax };
     const mathDocument = mathjax.document(content, documentOptions);
-    const html = adaptor.outerHTML(mathDocument.convert(content, convertOptions));
-    const stylesheet = adaptor.outerHTML(documentOptions.OutputJax.styleSheet(mathDocument) as SafeAny);
+    const html = mjAdaptor!.outerHTML(mathDocument.convert(content, convertOptions));
+    const stylesheet = mjAdaptor!.outerHTML(mjOutputJax.styleSheet(mathDocument));
     return juice(html + stylesheet);
   } else {
     if (convertOptions.display) {
@@ -217,6 +227,7 @@ function mathBlock(state: MarkdownIt.StateBlock, start: number, end: number, sil
 
     if (state.src.slice(pos, max).trim().slice(-2) === '$$') {
       lastPos = state.src.slice(0, max).lastIndexOf('$$');
+      if (lastPos === -1) break; // guard: no closing $$ found in slice
       lastLine = state.src.slice(pos, lastPos);
       found = true;
     }

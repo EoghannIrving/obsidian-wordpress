@@ -65134,7 +65134,6 @@ var DEFAULT_SETTINGS = {
   useGutenbergBlocks: false
 };
 async function upgradeSettings(existingSettings, to) {
-  console.log(existingSettings, to);
   if (isUndefined_default(existingSettings.version)) {
     if (to === "2" /* V2 */) {
       const newSettings = Object.assign({}, DEFAULT_SETTINGS, {
@@ -65143,7 +65142,6 @@ async function upgradeSettings(existingSettings, to) {
         showRibbonIcon: existingSettings.showRibbonIcon,
         defaultPostStatus: existingSettings.defaultPostStatus,
         defaultCommentStatus: existingSettings.defaultCommentStatus,
-        defaultPostType: "post",
         rememberLastSelectedCategories: existingSettings.rememberLastSelectedCategories,
         showWordPressEditConfirm: existingSettings.showWordPressEditConfirm,
         mathJaxOutputType: existingSettings.mathJaxOutputType,
@@ -65189,6 +65187,17 @@ async function upgradeSettings(existingSettings, to) {
 }
 
 // src/markdown-it-mathjax3-plugin.ts
+var mjAdaptor = null;
+var mjInputJax = null;
+var mjOutputJax = null;
+function initMathJax() {
+  if (mjAdaptor !== null) return;
+  mjAdaptor = (0, import_liteAdaptor.liteAdaptor)();
+  const handler = (0, import_html8.RegisterHTMLHandler)(mjAdaptor);
+  (0, import_assistive_mml.AssistiveMmlHandler)(handler);
+  mjInputJax = new import_tex.TeX({ packages: import_AllPackages.AllPackages });
+  mjOutputJax = new import_svg.SVG({ fontCache: "none" });
+}
 var inlineTokenType = "math_inline";
 var blockTokenType = "math_block";
 var pluginOptions = {
@@ -65218,16 +65227,11 @@ function plugin(md) {
 }
 function renderMath(content, convertOptions) {
   if (pluginOptions.outputType === "svg" /* SVG */) {
-    const documentOptions = {
-      InputJax: new import_tex.TeX({ packages: import_AllPackages.AllPackages }),
-      OutputJax: new import_svg.SVG({ fontCache: "none" })
-    };
-    const adaptor = (0, import_liteAdaptor.liteAdaptor)();
-    const handler = (0, import_html8.RegisterHTMLHandler)(adaptor);
-    (0, import_assistive_mml.AssistiveMmlHandler)(handler);
+    initMathJax();
+    const documentOptions = { InputJax: mjInputJax, OutputJax: mjOutputJax };
     const mathDocument = import_mathjax.mathjax.document(content, documentOptions);
-    const html3 = adaptor.outerHTML(mathDocument.convert(content, convertOptions));
-    const stylesheet = adaptor.outerHTML(documentOptions.OutputJax.styleSheet(mathDocument));
+    const html3 = mjAdaptor.outerHTML(mathDocument.convert(content, convertOptions));
+    const stylesheet = mjAdaptor.outerHTML(mjOutputJax.styleSheet(mathDocument));
     return (0, import_juice.default)(html3 + stylesheet);
   } else {
     if (convertOptions.display) {
@@ -65344,6 +65348,7 @@ function mathBlock(state, start, end2, silent) {
     }
     if (state.src.slice(pos, max).trim().slice(-2) === "$$") {
       lastPos = state.src.slice(0, max).lastIndexOf("$$");
+      if (lastPos === -1) break;
       lastLine = state.src.slice(pos, lastPos);
       found = true;
     }
@@ -77367,6 +77372,10 @@ var lib_default = MarkdownIt;
 
 // src/markdown-it-image-plugin.ts
 var tokenType = "ob_img";
+var WIKILINK_IMAGE_RE = /^!\[\[([^|\]\n]+)(\|([^\]\n]+))?\]\]/;
+function escapeAttr(value) {
+  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
 var pluginOptions2 = {
   doWithImage: () => {
   }
@@ -77380,8 +77389,7 @@ var MarkdownItImagePluginInstance = {
 function plugin2(md) {
   md.inline.ruler.after("image", tokenType, (state, silent) => {
     var _a2, _b, _c, _d, _e, _f;
-    const regex = /^!\[\[([^|\]\n]+)(\|([^\]\n]+))?\]\]/;
-    const match3 = state.src.slice(state.pos).match(regex);
+    const match3 = state.src.slice(state.pos).match(WIKILINK_IMAGE_RE);
     if (match3) {
       if (silent) {
         return true;
@@ -77428,16 +77436,16 @@ function plugin2(md) {
     }
   });
   md.renderer.rules.ob_img = (tokens, idx) => {
-    var _a2, _b, _c, _d, _e, _f;
+    var _a2, _b, _c, _d, _e, _f, _g;
     const token = tokens[idx];
-    const src = (_b = (_a2 = token.attrs) == null ? void 0 : _a2[0]) == null ? void 0 : _b[1];
-    const width = (_d = (_c = token.attrs) == null ? void 0 : _c[1]) == null ? void 0 : _d[1];
-    const height = (_f = (_e = token.attrs) == null ? void 0 : _e[2]) == null ? void 0 : _f[1];
+    const src = escapeAttr((_c = (_b = (_a2 = token.attrs) == null ? void 0 : _a2[0]) == null ? void 0 : _b[1]) != null ? _c : "");
+    const width = (_e = (_d = token.attrs) == null ? void 0 : _d[1]) == null ? void 0 : _e[1];
+    const height = (_g = (_f = token.attrs) == null ? void 0 : _f[2]) == null ? void 0 : _g[1];
     if (width) {
       if (height) {
-        return `<img src="${src}" width="${width}" height="${height}" alt="">`;
+        return `<img src="${src}" width="${escapeAttr(width)}" height="${escapeAttr(height)}" alt="">`;
       }
-      return `<img src="${src}" width="${width}" alt="">`;
+      return `<img src="${src}" width="${escapeAttr(width)}" alt="">`;
     } else {
       return `<img src="${src}" alt="">`;
     }
@@ -79194,6 +79202,13 @@ var WordpressSettingTab = class extends import_obsidian14.PluginSettingTab {
     super(plugin4.app, plugin4);
     this.plugin = plugin4;
   }
+  async trySaveSettings() {
+    try {
+      await this.trySaveSettings();
+    } catch (e) {
+      new import_obsidian14.Notice("WordPress plugin: failed to save settings.");
+    }
+  }
   display() {
     const t = (key, vars) => {
       return this.plugin.i18n.t(key, vars);
@@ -79221,28 +79236,26 @@ var WordpressSettingTab = class extends import_obsidian14.PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.createEl("h1", { text: t("settings_title") });
-    let mathJaxOutputTypeDesc = getMathJaxOutputTypeDesc(this.plugin.settings.mathJaxOutputType);
-    let commentConvertModeDesc = getCommentConvertModeDesc(this.plugin.settings.commentConvertMode);
     new import_obsidian14.Setting(containerEl).setName(t("settings_profiles")).setDesc(t("settings_profilesDesc")).addButton((button) => button.setButtonText(t("settings_profilesModal")).onClick(() => {
       new WpProfileManageModal(this.plugin).open();
     }));
     new import_obsidian14.Setting(containerEl).setName(t("settings_showRibbonIcon")).setDesc(t("settings_showRibbonIconDesc")).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.showRibbonIcon).onChange(async (value) => {
         this.plugin.settings.showRibbonIcon = value;
-        await this.plugin.saveSettings();
+        await this.trySaveSettings();
         this.plugin.updateRibbonIcon();
       })
     );
     new import_obsidian14.Setting(containerEl).setName(t("settings_defaultPostStatus")).setDesc(t("settings_defaultPostStatusDesc")).addDropdown((dropdown) => {
       dropdown.addOption("draft" /* Draft */, t("settings_defaultPostStatusDraft")).addOption("publish" /* Publish */, t("settings_defaultPostStatusPublish")).addOption("private" /* Private */, t("settings_defaultPostStatusPrivate")).setValue(this.plugin.settings.defaultPostStatus).onChange(async (value) => {
         this.plugin.settings.defaultPostStatus = value;
-        await this.plugin.saveSettings();
+        await this.trySaveSettings();
       });
     });
     new import_obsidian14.Setting(containerEl).setName(t("settings_defaultPostComment")).setDesc(t("settings_defaultPostCommentDesc")).addDropdown((dropdown) => {
       dropdown.addOption("open" /* Open */, t("settings_defaultPostCommentOpen")).addOption("closed" /* Closed */, t("settings_defaultPostCommentClosed")).setValue(this.plugin.settings.defaultCommentStatus).onChange(async (value) => {
         this.plugin.settings.defaultCommentStatus = value;
-        await this.plugin.saveSettings();
+        await this.trySaveSettings();
       });
     });
     new import_obsidian14.Setting(containerEl).setName(t("settings_rememberLastSelectedCategories")).setDesc(t("settings_rememberLastSelectedCategoriesDesc")).addToggle(
@@ -79255,45 +79268,43 @@ var WordpressSettingTab = class extends import_obsidian14.PluginSettingTab {
             }
           });
         }
-        await this.plugin.saveSettings();
+        await this.trySaveSettings();
       })
     );
     new import_obsidian14.Setting(containerEl).setName(t("settings_showWordPressEditPageModal")).setDesc(t("settings_showWordPressEditPageModalDesc")).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.showWordPressEditConfirm).onChange(async (value) => {
         this.plugin.settings.showWordPressEditConfirm = value;
-        await this.plugin.saveSettings();
+        await this.trySaveSettings();
       })
     );
     new import_obsidian14.Setting(containerEl).setName(t("settings_mathJaxOutputType")).setDesc(t("settings_mathJaxOutputTypeDesc")).addDropdown((dropdown) => {
       dropdown.addOption("tex" /* TeX */, t("settings_mathJaxOutputTypeTeX")).addOption("svg" /* SVG */, t("settings_mathJaxOutputTypeSVG")).setValue(this.plugin.settings.mathJaxOutputType).onChange(async (value) => {
         this.plugin.settings.mathJaxOutputType = value;
-        mathJaxOutputTypeDesc = getMathJaxOutputTypeDesc(this.plugin.settings.mathJaxOutputType);
-        await this.plugin.saveSettings();
+        await this.trySaveSettings();
         this.display();
         setupMarkdownParser(this.plugin.settings);
       });
     });
     containerEl.createEl("p", {
-      text: mathJaxOutputTypeDesc,
+      text: getMathJaxOutputTypeDesc(this.plugin.settings.mathJaxOutputType),
       cls: "setting-item-description"
     });
     new import_obsidian14.Setting(containerEl).setName(t("settings_commentConvertMode")).setDesc(t("settings_commentConvertModeDesc")).addDropdown((dropdown) => {
       dropdown.addOption("ignore" /* Ignore */, t("settings_commentConvertModeIgnore")).addOption("html" /* HTML */, t("settings_commentConvertModeHTML")).setValue(this.plugin.settings.commentConvertMode).onChange(async (value) => {
         this.plugin.settings.commentConvertMode = value;
-        commentConvertModeDesc = getCommentConvertModeDesc(this.plugin.settings.commentConvertMode);
-        await this.plugin.saveSettings();
+        await this.trySaveSettings();
         this.display();
         setupMarkdownParser(this.plugin.settings);
       });
     });
     containerEl.createEl("p", {
-      text: commentConvertModeDesc,
+      text: getCommentConvertModeDesc(this.plugin.settings.commentConvertMode),
       cls: "setting-item-description"
     });
     new import_obsidian14.Setting(containerEl).setName(t("settings_enableHtml")).setDesc(t("settings_enableHtmlDesc")).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.enableHtml).onChange(async (value) => {
         this.plugin.settings.enableHtml = value;
-        await this.plugin.saveSettings();
+        await this.trySaveSettings();
         AppState.markdownParser.set({
           html: this.plugin.settings.enableHtml
         });
@@ -79302,13 +79313,13 @@ var WordpressSettingTab = class extends import_obsidian14.PluginSettingTab {
     new import_obsidian14.Setting(containerEl).setName(t("settings_replaceMediaLinks")).setDesc(t("settings_replaceMediaLinksDesc")).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.replaceMediaLinks).onChange(async (value) => {
         this.plugin.settings.replaceMediaLinks = value;
-        await this.plugin.saveSettings();
+        await this.trySaveSettings();
       })
     );
     new import_obsidian14.Setting(containerEl).setName(t("settings_useGutenbergBlocks")).setDesc(t("settings_useGutenbergBlocksDesc")).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.useGutenbergBlocks).onChange(async (value) => {
         this.plugin.settings.useGutenbergBlocks = value;
-        await this.plugin.saveSettings();
+        await this.trySaveSettings();
       })
     );
   }

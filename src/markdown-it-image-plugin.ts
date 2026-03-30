@@ -4,6 +4,17 @@ import { trim } from 'lodash-es';
 
 const tokenType = 'ob_img';
 
+// Module-level constant: avoids recompiling on every inline token parse
+const WIKILINK_IMAGE_RE = /^!\[\[([^|\]\n]+)(\|([^\]\n]+))?\]\]/;
+
+function escapeAttr(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 export interface MarkdownItImageActionParams {
   src: string;
   width?: string;
@@ -27,8 +38,7 @@ export const MarkdownItImagePluginInstance = {
 
 function plugin(md: MarkdownIt): void {
   md.inline.ruler.after('image', tokenType, (state, silent) => {
-    const regex = /^!\[\[([^|\]\n]+)(\|([^\]\n]+))?\]\]/;
-    const match = state.src.slice(state.pos).match(regex);
+    const match = state.src.slice(state.pos).match(WIKILINK_IMAGE_RE);
     if (match) {
       if (silent) {
         return true;
@@ -76,14 +86,14 @@ function plugin(md: MarkdownIt): void {
   });
   md.renderer.rules.ob_img = (tokens: MarkdownIt.Token[], idx: number) => {
     const token = tokens[idx];
-    const src = token.attrs?.[0]?.[1];
+    const src = escapeAttr(token.attrs?.[0]?.[1] ?? '');
     const width = token.attrs?.[1]?.[1];
     const height = token.attrs?.[2]?.[1];
     if (width) {
       if (height) {
-        return `<img src="${src}" width="${width}" height="${height}" alt="">`;
+        return `<img src="${src}" width="${escapeAttr(width)}" height="${escapeAttr(height)}" alt="">`;
       }
-      return `<img src="${src}" width="${width}" alt="">`;
+      return `<img src="${src}" width="${escapeAttr(width)}" alt="">`;
     } else {
       return `<img src="${src}" alt="">`;
     }

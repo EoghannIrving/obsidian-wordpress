@@ -1,4 +1,4 @@
-import { PluginSettingTab, Setting } from 'obsidian';
+import { Notice, PluginSettingTab, Setting } from 'obsidian';
 import WordpressPlugin from './main';
 import { CommentStatus, PostStatus } from './wp-api';
 import { TranslateKey } from './i18n';
@@ -16,6 +16,14 @@ export class WordpressSettingTab extends PluginSettingTab {
   ) {
 		super(plugin.app, plugin);
 	}
+
+  private async trySaveSettings(): Promise<void> {
+    try {
+      await this.trySaveSettings();
+    } catch {
+      new Notice('WordPress plugin: failed to save settings.');
+    }
+  }
 
 	display(): void {
     const t = (key: TranslateKey, vars?: Record<string, string>): string => {
@@ -50,9 +58,6 @@ export class WordpressSettingTab extends PluginSettingTab {
 
     containerEl.createEl('h1', { text: t('settings_title') });
 
-    let mathJaxOutputTypeDesc = getMathJaxOutputTypeDesc(this.plugin.settings.mathJaxOutputType);
-    let commentConvertModeDesc = getCommentConvertModeDesc(this.plugin.settings.commentConvertMode);
-
     new Setting(containerEl)
       .setName(t('settings_profiles'))
       .setDesc(t('settings_profilesDesc'))
@@ -70,7 +75,7 @@ export class WordpressSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.showRibbonIcon)
           .onChange(async (value) => {
             this.plugin.settings.showRibbonIcon = value;
-            await this.plugin.saveSettings();
+            await this.trySaveSettings();
 
             this.plugin.updateRibbonIcon();
           }),
@@ -87,7 +92,7 @@ export class WordpressSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.defaultPostStatus)
           .onChange(async (value) => {
             this.plugin.settings.defaultPostStatus = value as PostStatus;
-            await this.plugin.saveSettings();
+            await this.trySaveSettings();
           });
       });
 
@@ -102,7 +107,7 @@ export class WordpressSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.defaultCommentStatus)
           .onChange(async (value) => {
             this.plugin.settings.defaultCommentStatus = value as CommentStatus;
-            await this.plugin.saveSettings();
+            await this.trySaveSettings();
           });
       });
 
@@ -121,7 +126,7 @@ export class WordpressSettingTab extends PluginSettingTab {
                 }
               });
             }
-            await this.plugin.saveSettings();
+            await this.trySaveSettings();
           }),
       );
 
@@ -133,7 +138,7 @@ export class WordpressSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.showWordPressEditConfirm)
           .onChange(async (value) => {
             this.plugin.settings.showWordPressEditConfirm = value;
-            await this.plugin.saveSettings();
+            await this.trySaveSettings();
           }),
       );
 
@@ -147,15 +152,14 @@ export class WordpressSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.mathJaxOutputType)
           .onChange(async (value) => {
             this.plugin.settings.mathJaxOutputType = value as MathJaxOutputType;
-            mathJaxOutputTypeDesc = getMathJaxOutputTypeDesc(this.plugin.settings.mathJaxOutputType);
-            await this.plugin.saveSettings();
+            await this.trySaveSettings();
             this.display();
 
             setupMarkdownParser(this.plugin.settings);
           });
       });
     containerEl.createEl('p', {
-      text: mathJaxOutputTypeDesc,
+      text: getMathJaxOutputTypeDesc(this.plugin.settings.mathJaxOutputType),
       cls: 'setting-item-description'
     });
 
@@ -169,15 +173,14 @@ export class WordpressSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.commentConvertMode)
           .onChange(async (value) => {
             this.plugin.settings.commentConvertMode = value as CommentConvertMode;
-            commentConvertModeDesc = getCommentConvertModeDesc(this.plugin.settings.commentConvertMode);
-            await this.plugin.saveSettings();
+            await this.trySaveSettings();
             this.display();
 
             setupMarkdownParser(this.plugin.settings);
           });
       });
     containerEl.createEl('p', {
-      text: commentConvertModeDesc,
+      text: getCommentConvertModeDesc(this.plugin.settings.commentConvertMode),
       cls: 'setting-item-description'
     });
 
@@ -189,7 +192,7 @@ export class WordpressSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.enableHtml)
           .onChange(async (value) => {
             this.plugin.settings.enableHtml = value;
-            await this.plugin.saveSettings();
+            await this.trySaveSettings();
 
             AppState.markdownParser.set({
               html: this.plugin.settings.enableHtml
@@ -205,7 +208,7 @@ export class WordpressSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.replaceMediaLinks)
           .onChange(async (value) => {
             this.plugin.settings.replaceMediaLinks = value;
-            await this.plugin.saveSettings();
+            await this.trySaveSettings();
           }),
       );
 
@@ -217,7 +220,7 @@ export class WordpressSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.useGutenbergBlocks)
           .onChange(async (value) => {
             this.plugin.settings.useGutenbergBlocks = value;
-            await this.plugin.saveSettings();
+            await this.trySaveSettings();
           }),
       );
 	}

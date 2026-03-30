@@ -101,7 +101,6 @@ export async function upgradeSettings(
   existingSettings: SafeAny,
   to: SettingsVersion
 ): Promise<{ needUpgrade: boolean, settings: WordpressPluginSettings }> {
-  console.log(existingSettings, to);
   if (isUndefined(existingSettings.version)) {
     // V1
     if (to === SettingsVersion.V2) {
@@ -111,7 +110,6 @@ export async function upgradeSettings(
         showRibbonIcon: existingSettings.showRibbonIcon,
         defaultPostStatus: existingSettings.defaultPostStatus,
         defaultCommentStatus: existingSettings.defaultCommentStatus,
-        defaultPostType: 'post',
         rememberLastSelectedCategories: existingSettings.rememberLastSelectedCategories,
         showWordPressEditConfirm: existingSettings.showWordPressEditConfirm,
         mathJaxOutputType: existingSettings.mathJaxOutputType,
