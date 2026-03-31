@@ -77706,6 +77706,7 @@ var AbstractWordPressClient = class {
       postParams
     });
     let html3 = AppState.markdownParser.render(postParams.content);
+    html3 = fixVideoElements(html3);
     if (this.plugin.settings.useGutenbergBlocks) {
       html3 = htmlToGutenbergBlocks(html3);
     }
@@ -77762,6 +77763,7 @@ var AbstractWordPressClient = class {
       throw new Error(this.plugin.i18n.t("error_noActiveFile"));
     }
     const uploadCache = /* @__PURE__ */ new Map();
+    const videoSrcs = /* @__PURE__ */ new Set();
     const images = getImages(postParams.content);
     for (const img of images) {
       if (img.srcIsUrl) continue;
@@ -77772,8 +77774,9 @@ var AbstractWordPressClient = class {
         if (!(imgFile instanceof import_obsidian8.TFile)) continue;
         const content = await this.plugin.app.vault.readBinary(imgFile);
         const fileType = import_file_type_checker.default.detectFile(content);
+        const mimeType = (_a2 = fileType == null ? void 0 : fileType.mimeType) != null ? _a2 : "application/octet-stream";
         const result = await this.uploadMedia({
-          mimeType: (_a2 = fileType == null ? void 0 : fileType.mimeType) != null ? _a2 : "application/octet-stream",
+          mimeType,
           fileName: imgFile.name,
           content
         }, auth);
@@ -77784,6 +77787,9 @@ var AbstractWordPressClient = class {
         }
         wpUrl = result.data.url;
         uploadCache.set(decodedSrc, wpUrl);
+        if (mimeType.startsWith("video/")) {
+          videoSrcs.add(decodedSrc);
+        }
       }
       if (img.width && img.height) {
         postParams.content = postParams.content.replace(img.original, `![[${wpUrl}|${img.width}x${img.height}]]`);
@@ -77799,7 +77805,9 @@ var AbstractWordPressClient = class {
         let noteContent = activeEditor.editor.getValue();
         for (const img of images) {
           if (img.srcIsUrl) continue;
-          const wpUrl = uploadCache.get(decodeURI(img.src));
+          const decodedSrc = decodeURI(img.src);
+          if (videoSrcs.has(decodedSrc)) continue;
+          const wpUrl = uploadCache.get(decodedSrc);
           if (!wpUrl) continue;
           noteContent = noteContent.replace(img.original, `![${(_b = img.altText) != null ? _b : ""}](${wpUrl})`);
         }
@@ -77931,6 +77939,10 @@ function htmlToGutenbergBlocks(html3) {
           blocks.push(`<!-- wp:image -->
 <figure class="wp-block-image">${node.children[0].outerHTML}</figure>
 <!-- /wp:image -->`);
+        } else if (node.children.length === 1 && node.children[0].tagName === "VIDEO") {
+          blocks.push(`<!-- wp:video -->
+<figure class="wp-block-video">${node.children[0].outerHTML}</figure>
+<!-- /wp:video -->`);
         } else {
           blocks.push(`<!-- wp:paragraph -->
 ${node.outerHTML}
@@ -77969,6 +77981,11 @@ ${node.outerHTML}
 ${node.outerHTML}
 <!-- /wp:quote -->`);
         break;
+      case "video":
+        blocks.push(`<!-- wp:video -->
+<figure class="wp-block-video">${node.outerHTML}</figure>
+<!-- /wp:video -->`);
+        break;
       case "figure":
       case "img": {
         const figure = tag === "img" ? `<figure class="wp-block-image">${node.outerHTML}</figure>` : node.outerHTML;
@@ -77999,6 +78016,13 @@ var TRAILING_TAG_BLOCK_RE = /\n+((?:[ \t]*#[\w/\-]+[ \t]*\n?)+)$/;
 var HASHTAG_RE = /#([\w/\-]+)/g;
 var IMG_STANDARD_RE = /(!\[(.*?)(?:\|(\d+)(?:x(\d+))?)?]\((.*?)\))/g;
 var IMG_WIKILINK_RE = /(!\[\[(.*?)(?:\|(\d+)(?:x(\d+))?)?]])/g;
+var VIDEO_EXT_RE = /\.(mp4|webm|ogv|mov|avi|mkv|m4v)(\?[^"]*)?$/i;
+function fixVideoElements(html3) {
+  return html3.replace(
+    /<img([^>]*)\bsrc="([^"]*)"([^>]*)>/gi,
+    (match3, _before, src, _after) => VIDEO_EXT_RE.test(src) ? `<video controls src="${src}"></video>` : match3
+  );
+}
 function extractTrailingHashtags(content) {
   const match3 = content.match(TRAILING_TAG_BLOCK_RE);
   if (!match3) return { content, tags: [] };

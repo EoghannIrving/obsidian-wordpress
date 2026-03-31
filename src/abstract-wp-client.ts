@@ -133,6 +133,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       postParams
     });
     let html = AppState.markdownParser.render(postParams.content);
+    html = fixVideoElements(html);
     if (this.plugin.settings.useGutenbergBlocks) {
       html = htmlToGutenbergBlocks(html);
     }
@@ -199,6 +200,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     }
 
     const uploadCache = new Map<string, string>(); // local src → uploaded WP URL
+    const videoSrcs = new Set<string>();            // decoded srcs that are video files
     const images = getImages(postParams.content);
 
     for (const img of images) {
@@ -214,8 +216,9 @@ export abstract class AbstractWordPressClient implements WordPressClient {
 
         const content = await this.plugin.app.vault.readBinary(imgFile);
         const fileType = fileTypeChecker.detectFile(content);
+        const mimeType = fileType?.mimeType ?? 'application/octet-stream';
         const result = await this.uploadMedia({
-          mimeType: fileType?.mimeType ?? 'application/octet-stream',
+          mimeType,
           fileName: imgFile.name,
           content,
         }, auth);
@@ -230,9 +233,14 @@ export abstract class AbstractWordPressClient implements WordPressClient {
 
         wpUrl = result.data.url;
         uploadCache.set(decodedSrc, wpUrl);
+        if (mimeType.startsWith('video/')) {
+          videoSrcs.add(decodedSrc);
+        }
       }
 
-      // Replace in publishing content using wikilink format (handled by the image plugin)
+      // Replace in publishing content using wikilink format (handled by the image plugin).
+      // Videos use the same wikilink replacement; fixVideoElements() corrects the rendered
+      // <img> to <video> after markdown-it renders the content.
       if (img.width && img.height) {
         postParams.content = postParams.content.replace(img.original, `![[${wpUrl}|${img.width}x${img.height}]]`);
       } else if (img.width) {
@@ -243,16 +251,19 @@ export abstract class AbstractWordPressClient implements WordPressClient {
     }
 
     // Optionally rewrite the local note. Uses standard markdown syntax ![alt](url)
-    // rather than wikilink syntax, so Obsidian can still display the remote image.
-    // Reads from the live editor (not postParams.content) so that any pre-publish
-    // transformations — e.g. stripped hashtags — are not written back to the note.
+    // for images so Obsidian can display the remote URL. Videos are skipped — Obsidian
+    // cannot stream remote video, so the local wikilink is left intact.
+    // Reads from the live editor so pre-publish transformations (e.g. hashtag stripping)
+    // are not written back to the note.
     if (this.plugin.settings.replaceMediaLinks && uploadCache.size > 0) {
       const { activeEditor } = this.plugin.app.workspace;
       if (activeEditor?.editor) {
         let noteContent = activeEditor.editor.getValue();
         for (const img of images) {
           if (img.srcIsUrl) continue;
-          const wpUrl = uploadCache.get(decodeURI(img.src));
+          const decodedSrc = decodeURI(img.src);
+          if (videoSrcs.has(decodedSrc)) continue; // keep local video links intact
+          const wpUrl = uploadCache.get(decodedSrc);
           if (!wpUrl) continue;
           noteContent = noteContent.replace(img.original, `![${img.altText ?? ''}](${wpUrl})`);
         }
@@ -435,6 +446,8 @@ function htmlToGutenbergBlocks(html: string): string {
         // markdown-it wraps a standalone image in <p><img></p> — promote to wp:image
         if (node.children.length === 1 && node.children[0].tagName === 'IMG') {
           blocks.push(`<!-- wp:image -->\n<figure class="wp-block-image">${node.children[0].outerHTML}</figure>\n<!-- /wp:image -->`);
+        } else if (node.children.length === 1 && node.children[0].tagName === 'VIDEO') {
+          blocks.push(`<!-- wp:video -->\n<figure class="wp-block-video">${node.children[0].outerHTML}</figure>\n<!-- /wp:video -->`);
         } else {
           blocks.push(`<!-- wp:paragraph -->\n${node.outerHTML}\n<!-- /wp:paragraph -->`);
         }
@@ -460,6 +473,10 @@ function htmlToGutenbergBlocks(html: string): string {
 
       case 'blockquote':
         blocks.push(`<!-- wp:quote -->\n${node.outerHTML}\n<!-- /wp:quote -->`);
+        break;
+
+      case 'video':
+        blocks.push(`<!-- wp:video -->\n<figure class="wp-block-video">${node.outerHTML}</figure>\n<!-- /wp:video -->`);
         break;
 
       case 'figure':
@@ -495,6 +512,20 @@ const TRAILING_TAG_BLOCK_RE = /\n+((?:[ \t]*#[\w/\-]+[ \t]*\n?)+)$/;
 const HASHTAG_RE = /#([\w/\-]+)/g;
 const IMG_STANDARD_RE = /(!\[(.*?)(?:\|(\d+)(?:x(\d+))?)?]\((.*?)\))/g;
 const IMG_WIKILINK_RE = /(!\[\[(.*?)(?:\|(\d+)(?:x(\d+))?)?]])/g;
+const VIDEO_EXT_RE = /\.(mp4|webm|ogv|mov|avi|mkv|m4v)(\?[^"]*)?$/i;
+
+/**
+ * markdown-it renders video file references as <img> tags because it has no
+ * concept of video. Replace those <img src="*.ext"> tags with proper
+ * <video controls src="..."> elements before Gutenberg serialisation.
+ */
+function fixVideoElements(html: string): string {
+  return html.replace(
+    /<img([^>]*)\bsrc="([^"]*)"([^>]*)>/gi,
+    (match, _before, src, _after) =>
+      VIDEO_EXT_RE.test(src) ? `<video controls src="${src}"></video>` : match
+  );
+}
 
 function extractTrailingHashtags(content: string): { content: string; tags: string[] } {
   // Match a trailing block of lines containing only #tags (no space after #, so headings are safe)
