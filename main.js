@@ -77756,7 +77756,7 @@ var AbstractWordPressClient = class {
     return result;
   }
   async updatePostImages(params) {
-    var _a2, _b;
+    var _a2, _b, _c;
     const { postParams, auth } = params;
     const activeFile = this.plugin.app.workspace.getActiveFile();
     if (activeFile === null) {
@@ -77770,11 +77770,17 @@ var AbstractWordPressClient = class {
       const decodedSrc = decodeURI(img.src);
       let wpUrl = uploadCache.get(decodedSrc);
       if (!wpUrl) {
-        const imgFile = this.plugin.app.metadataCache.getFirstLinkpathDest(decodedSrc, activeFile.path);
+        let imgFile;
+        if (img.isFileUrl) {
+          const fileName = (_a2 = decodedSrc.replace(/^file:\/\/\//, "").split("/").pop()) != null ? _a2 : "";
+          imgFile = this.plugin.app.metadataCache.getFirstLinkpathDest(fileName, activeFile.path);
+        } else {
+          imgFile = this.plugin.app.metadataCache.getFirstLinkpathDest(decodedSrc, activeFile.path);
+        }
         if (!(imgFile instanceof import_obsidian8.TFile)) continue;
         const content = await this.plugin.app.vault.readBinary(imgFile);
         const fileType = import_file_type_checker.default.detectFile(content);
-        const mimeType = (_a2 = fileType == null ? void 0 : fileType.mimeType) != null ? _a2 : "application/octet-stream";
+        const mimeType = (_b = fileType == null ? void 0 : fileType.mimeType) != null ? _b : "application/octet-stream";
         const result = await this.uploadMedia({
           mimeType,
           fileName: imgFile.name,
@@ -77791,12 +77797,16 @@ var AbstractWordPressClient = class {
           videoSrcs.add(decodedSrc);
         }
       }
-      if (img.width && img.height) {
-        postParams.content = postParams.content.replace(img.original, `![[${wpUrl}|${img.width}x${img.height}]]`);
-      } else if (img.width) {
-        postParams.content = postParams.content.replace(img.original, `![[${wpUrl}|${img.width}]]`);
+      if (img.isFileUrl) {
+        postParams.content = postParams.content.replace(img.original, `src="${wpUrl}"`);
       } else {
-        postParams.content = postParams.content.replace(img.original, `![[${wpUrl}]]`);
+        if (img.width && img.height) {
+          postParams.content = postParams.content.replace(img.original, `![[${wpUrl}|${img.width}x${img.height}]]`);
+        } else if (img.width) {
+          postParams.content = postParams.content.replace(img.original, `![[${wpUrl}|${img.width}]]`);
+        } else {
+          postParams.content = postParams.content.replace(img.original, `![[${wpUrl}]]`);
+        }
       }
     }
     if (this.plugin.settings.replaceMediaLinks && uploadCache.size > 0) {
@@ -77804,12 +77814,12 @@ var AbstractWordPressClient = class {
       if (activeEditor == null ? void 0 : activeEditor.editor) {
         let noteContent = activeEditor.editor.getValue();
         for (const img of images) {
-          if (img.srcIsUrl) continue;
+          if (img.srcIsUrl || img.isFileUrl) continue;
           const decodedSrc = decodeURI(img.src);
           if (videoSrcs.has(decodedSrc)) continue;
           const wpUrl = uploadCache.get(decodedSrc);
           if (!wpUrl) continue;
-          noteContent = noteContent.replace(img.original, `![${(_b = img.altText) != null ? _b : ""}](${wpUrl})`);
+          noteContent = noteContent.replace(img.original, `![${(_c = img.altText) != null ? _c : ""}](${wpUrl})`);
         }
         activeEditor.editor.setValue(noteContent);
       }
@@ -78017,6 +78027,7 @@ var HASHTAG_RE = /#([\w/\-]+)/g;
 var IMG_STANDARD_RE = /(!\[(.*?)(?:\|(\d+)(?:x(\d+))?)?]\((.*?)\))/g;
 var IMG_WIKILINK_RE = /(!\[\[(.*?)(?:\|(\d+)(?:x(\d+))?)?]])/g;
 var VIDEO_EXT_RE = /\.(mp4|webm|ogv|mov|avi|mkv|m4v)(\?[^"]*)?$/i;
+var FILE_URL_IN_HTML_RE = /src="(file:\/\/\/[^"]+)"/g;
 function fixVideoElements(html3) {
   return html3.replace(
     /<img([^>]*)\bsrc="([^"]*)"([^>]*)>/gi,
@@ -78033,7 +78044,7 @@ function extractTrailingHashtags(content) {
   };
 }
 function getImages(content) {
-  var _a2, _b, _c, _d;
+  var _a2, _b, _c, _d, _e, _f;
   const paths = [];
   for (const match3 of content.matchAll(IMG_STANDARD_RE)) {
     paths.push({
@@ -78056,6 +78067,20 @@ function getImages(content) {
       startIndex: (_c = match3.index) != null ? _c : 0,
       endIndex: ((_d = match3.index) != null ? _d : 0) + match3[0].length,
       srcIsUrl: isValidUrl(match3[2])
+    });
+  }
+  for (const match3 of content.matchAll(FILE_URL_IN_HTML_RE)) {
+    const fileUrl = match3[1];
+    if (paths.some((p) => p.src === fileUrl)) continue;
+    paths.push({
+      src: fileUrl,
+      original: match3[0],
+      // full attribute: src="file:///..."
+      startIndex: (_e = match3.index) != null ? _e : 0,
+      endIndex: ((_f = match3.index) != null ? _f : 0) + match3[0].length,
+      srcIsUrl: false,
+      // treat as local despite URL scheme
+      isFileUrl: true
     });
   }
   return paths;

@@ -210,8 +210,16 @@ export abstract class AbstractWordPressClient implements WordPressClient {
 
       let wpUrl = uploadCache.get(decodedSrc);
       if (!wpUrl) {
-        // Use activeFile.path as sourcePath so relative links resolve correctly
-        const imgFile = this.plugin.app.metadataCache.getFirstLinkpathDest(decodedSrc, activeFile.path);
+        let imgFile: TFile | null;
+        if (img.isFileUrl) {
+          // file:// URL from raw HTML — resolve by filename only so vault lookup works
+          // regardless of whether the file is referenced by its full absolute path.
+          const fileName = decodedSrc.replace(/^file:\/\/\//, '').split('/').pop() ?? '';
+          imgFile = this.plugin.app.metadataCache.getFirstLinkpathDest(fileName, activeFile.path);
+        } else {
+          // Use activeFile.path as sourcePath so relative links resolve correctly
+          imgFile = this.plugin.app.metadataCache.getFirstLinkpathDest(decodedSrc, activeFile.path);
+        }
         if (!(imgFile instanceof TFile)) continue;
 
         const content = await this.plugin.app.vault.readBinary(imgFile);
@@ -238,21 +246,29 @@ export abstract class AbstractWordPressClient implements WordPressClient {
         }
       }
 
-      // Replace in publishing content using wikilink format (handled by the image plugin).
-      // Videos use the same wikilink replacement; fixVideoElements() corrects the rendered
-      // <img> to <video> after markdown-it renders the content.
-      if (img.width && img.height) {
-        postParams.content = postParams.content.replace(img.original, `![[${wpUrl}|${img.width}x${img.height}]]`);
-      } else if (img.width) {
-        postParams.content = postParams.content.replace(img.original, `![[${wpUrl}|${img.width}]]`);
+      if (img.isFileUrl) {
+        // For raw HTML entries, replace the src attribute value in-place.
+        // Videos are left in <video>/<source> format; only the URL changes.
+        postParams.content = postParams.content.replace(img.original, `src="${wpUrl}"`);
       } else {
-        postParams.content = postParams.content.replace(img.original, `![[${wpUrl}]]`);
+        // Replace in publishing content using wikilink format (handled by the image plugin).
+        // Videos use the same wikilink replacement; fixVideoElements() corrects the rendered
+        // <img> to <video> after markdown-it renders the content.
+        if (img.width && img.height) {
+          postParams.content = postParams.content.replace(img.original, `![[${wpUrl}|${img.width}x${img.height}]]`);
+        } else if (img.width) {
+          postParams.content = postParams.content.replace(img.original, `![[${wpUrl}|${img.width}]]`);
+        } else {
+          postParams.content = postParams.content.replace(img.original, `![[${wpUrl}]]`);
+        }
       }
     }
 
     // Optionally rewrite the local note. Uses standard markdown syntax ![alt](url)
     // for images so Obsidian can display the remote URL. Videos are skipped — Obsidian
     // cannot stream remote video, so the local wikilink is left intact.
+    // file:// HTML entries are also skipped — the raw HTML in the note is left unchanged
+    // so Obsidian can still play the video locally.
     // Reads from the live editor so pre-publish transformations (e.g. hashtag stripping)
     // are not written back to the note.
     if (this.plugin.settings.replaceMediaLinks && uploadCache.size > 0) {
@@ -260,7 +276,7 @@ export abstract class AbstractWordPressClient implements WordPressClient {
       if (activeEditor?.editor) {
         let noteContent = activeEditor.editor.getValue();
         for (const img of images) {
-          if (img.srcIsUrl) continue;
+          if (img.srcIsUrl || img.isFileUrl) continue;
           const decodedSrc = decodeURI(img.src);
           if (videoSrcs.has(decodedSrc)) continue; // keep local video links intact
           const wpUrl = uploadCache.get(decodedSrc);
@@ -411,6 +427,8 @@ interface Image {
   width?: string;
   height?: string;
   srcIsUrl: boolean;
+  /** True when `src` is a `file://` URL in a raw HTML attribute — needs vault lookup by filename */
+  isFileUrl?: boolean;
   startIndex: number;
   endIndex: number;
   file?: TFile;
@@ -513,6 +531,8 @@ const HASHTAG_RE = /#([\w/\-]+)/g;
 const IMG_STANDARD_RE = /(!\[(.*?)(?:\|(\d+)(?:x(\d+))?)?]\((.*?)\))/g;
 const IMG_WIKILINK_RE = /(!\[\[(.*?)(?:\|(\d+)(?:x(\d+))?)?]])/g;
 const VIDEO_EXT_RE = /\.(mp4|webm|ogv|mov|avi|mkv|m4v)(\?[^"]*)?$/i;
+// Matches src="file:///..." inside raw HTML blocks (e.g. <source>, <video>, <img>)
+const FILE_URL_IN_HTML_RE = /src="(file:\/\/\/[^"]+)"/g;
 
 /**
  * markdown-it renders video file references as <img> tags because it has no
@@ -565,6 +585,21 @@ function getImages(content: string): Image[] {
       startIndex: match.index ?? 0,
       endIndex: (match.index ?? 0) + match[0].length,
       srcIsUrl: isValidUrl(match[2]),
+    });
+  }
+
+  // for raw HTML blocks with src="file:///..." (e.g. <source>, <video>, <img> with local paths)
+  for (const match of content.matchAll(FILE_URL_IN_HTML_RE)) {
+    const fileUrl = match[1];
+    // skip if already captured above as a standard/wikilink reference
+    if (paths.some(p => p.src === fileUrl)) continue;
+    paths.push({
+      src: fileUrl,
+      original: match[0],        // full attribute: src="file:///..."
+      startIndex: match.index ?? 0,
+      endIndex: (match.index ?? 0) + match[0].length,
+      srcIsUrl: false,            // treat as local despite URL scheme
+      isFileUrl: true,
     });
   }
 
