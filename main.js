@@ -78246,6 +78246,18 @@ var WpXmlRpcClient = class extends AbstractWordPressClient {
     });
   }
   async uploadMedia(media, certificate) {
+    const MB = 1024 * 1024;
+    const XMLRPC_MAX_BYTES = 10 * MB;
+    if (media.content.byteLength > XMLRPC_MAX_BYTES) {
+      const sizeMB = (media.content.byteLength / MB).toFixed(1);
+      return {
+        code: 1 /* Error */,
+        error: {
+          code: 1 /* Error */,
+          message: `"${media.fileName}" is ${sizeMB} MB \u2014 XML-RPC cannot upload files larger than 10 MB. Switch to Application Passwords (REST API) to upload this file.`
+        }
+      };
+    }
     const wpMedia = {
       name: media.fileName,
       type: media.mimeType,

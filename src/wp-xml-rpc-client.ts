@@ -181,6 +181,22 @@ export class WpXmlRpcClient extends AbstractWordPressClient {
   }
 
   async uploadMedia(media: Media, certificate: WordPressAuthParams): Promise<WordPressClientResult<WordPressMediaUploadResult>> {
+    // XML-RPC encodes the entire file as base64 inside a single XML document.
+    // For large files this blocks the UI thread while encoding and sends a
+    // request that most servers will reject due to size.  Bail out early with a
+    // clear message so the user isn't left with a frozen UI.
+    const MB = 1024 * 1024;
+    const XMLRPC_MAX_BYTES = 10 * MB;
+    if (media.content.byteLength > XMLRPC_MAX_BYTES) {
+      const sizeMB = (media.content.byteLength / MB).toFixed(1);
+      return {
+        code: WordPressClientReturnCode.Error,
+        error: {
+          code: WordPressClientReturnCode.Error,
+          message: `"${media.fileName}" is ${sizeMB} MB — XML-RPC cannot upload files larger than 10 MB. Switch to Application Passwords (REST API) to upload this file.`
+        }
+      };
+    }
     const wpMedia = {
       name: media.fileName,
       type: media.mimeType,
