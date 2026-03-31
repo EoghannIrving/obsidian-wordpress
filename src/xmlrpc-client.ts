@@ -1,7 +1,26 @@
-import { arrayBufferToBase64, request } from 'obsidian';
+import { request } from 'obsidian';
 import { isArray, isArrayBuffer, isBoolean, isDate, isNumber, isObject, isSafeInteger } from 'lodash-es';
 import { format, parse } from 'date-fns';
 import { SafeAny } from './utils';
+
+/**
+ * Encode an ArrayBuffer as base64.
+ *
+ * Obsidian's built-in arrayBufferToBase64 uses
+ * String.fromCharCode.apply(null, entireArray), which hits V8's argument-count
+ * limit (~65 k) for large files and throws "Invalid array length".
+ * This version processes the buffer in small chunks to avoid that limit.
+ */
+function bufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const CHUNK = 8192;
+  const parts: string[] = [];
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    // eslint-disable-next-line prefer-spread
+    parts.push(String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK) as unknown as number[]));
+  }
+  return btoa(parts.join(''));
+}
 
 interface XmlRpcOptions {
   url: URL;
@@ -113,7 +132,7 @@ export class XmlRpcClient {
       value.appendChild(array);
     } else if (isArrayBuffer(data)) {
       const base64 = doc.createElement('base64');
-      base64.setText(arrayBufferToBase64(data));
+      base64.setText(bufferToBase64(data));
       value.appendChild(base64);
     } else if (isObject(data)) {
       const struct = doc.createElement('struct');

@@ -68830,6 +68830,15 @@ function cleanEscapedString2(input) {
 }
 
 // src/xmlrpc-client.ts
+function bufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const CHUNK = 8192;
+  const parts = [];
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    parts.push(String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK)));
+  }
+  return btoa(parts.join(""));
+}
 var XmlRpcClient = class {
   constructor(options) {
     this.options = options;
@@ -68907,7 +68916,7 @@ var XmlRpcClient = class {
       value.appendChild(array);
     } else if (isArrayBuffer_default(data2)) {
       const base64 = doc.createElement("base64");
-      base64.setText((0, import_obsidian.arrayBufferToBase64)(data2));
+      base64.setText(bufferToBase64(data2));
       value.appendChild(base64);
     } else if (isObject_default(data2)) {
       const struct = doc.createElement("struct");
