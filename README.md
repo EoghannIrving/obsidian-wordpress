@@ -12,7 +12,7 @@ This is an actively maintained fork of [obsidian-wordpress](https://github.com/d
 - **Gutenberg block output** — wraps rendered HTML in native block comments so each element is editable in the WordPress block editor
 - **Inline `#tag` support** — trailing `#hashtags` in a note are automatically stripped from the published content and sent as WordPress tags
 - **Reliable image upload** — local images are uploaded to the WordPress media library and rewritten in the published post; images continue to display correctly in Obsidian after publishing
-- **Local video upload** — local video files (mp4, webm, mov, etc.) referenced in a note are uploaded to the WordPress media library and published as native `<video>` elements; works with both `![[wikilink]]` syntax and raw HTML `<video>`/`<source>` blocks; the original local link is preserved in Obsidian
+- **Local video upload** — local video files (mp4, webm, mov, etc.) referenced in a note are uploaded to the WordPress media library and published as native `<video>` elements; works with both `![[wikilink]]` syntax and raw HTML `<video>`/`<source>` blocks; the original local link is preserved in Obsidian. Works over both REST API and XML-RPC.
 - Multiple authentication methods: Application Passwords, XML-RPC, miniOrange, WordPress.com OAuth2
 - MathJax rendering (SVG or TeX passthrough)
 - Obsidian comment (`%%...%%`) handling
@@ -162,7 +162,7 @@ This fork was created because the original [obsidian-wordpress](https://github.c
 - Gutenberg block output with per-element block type mapping
 - Trailing `#hashtag` extraction and publishing as WordPress tags
 - Inline `#tag` deduplication with front matter tags
-- Local video file upload to the WordPress media library, published as native `wp:video` blocks; handles both `![[wikilink]]` syntax and raw HTML `<video>`/`<source>` blocks containing `file://` local paths
+- Local video file upload to the WordPress media library, published as native `wp:video` blocks; handles both `![[wikilink]]` syntax and raw HTML `<video>`/`<source>` blocks containing `file://` local paths; works over both REST API and XML-RPC
 
 ### Bug fixes
 - **Image upload silently skipped** when no editor pane was focused — the upload loop was incorrectly gated on `activeEditor` being non-null
@@ -178,6 +178,7 @@ This fork was created because the original [obsidian-wordpress](https://github.c
 - **Dead `defaultPostType` property in V2 migration** — set a property that does not exist on the settings interface
 - **`saveSettings()` failures were silent** — all settings changes now show a Notice if the save fails
 - **Pre-existing TypeScript build errors** — broken `markdown-it` v14 deep-path imports and a type error in the OAuth2 token handler prevented production builds
+- **XML-RPC media upload fails for large files** — Obsidian's `arrayBufferToBase64` passes the entire buffer as individual arguments to `String.fromCharCode.apply()`, hitting V8's argument-count limit and throwing `Invalid array length` for files larger than ~64 KB; replaced with a chunked encoder
 
 ### Code quality
 - Regexes moved to module-level constants (no recompilation per publish/render)
