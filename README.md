@@ -12,7 +12,7 @@ This is an actively maintained fork of [obsidian-wordpress](https://github.com/d
 - **Gutenberg block output** — wraps rendered HTML in native block comments so each element is editable in the WordPress block editor
 - **Inline `#tag` support** — trailing `#hashtags` in a note are automatically stripped from the published content and sent as WordPress tags
 - **Reliable image upload** — local images are uploaded to the WordPress media library and rewritten in the published post; images continue to display correctly in Obsidian after publishing
-- **Local video upload** — local video files (mp4, webm, mov, etc.) referenced in a note are uploaded to the WordPress media library and published as native `<video>` elements; the original local link is preserved in Obsidian
+- **Local video upload** — local video files (mp4, webm, mov, etc.) referenced in a note are uploaded to the WordPress media library and published as native `<video>` elements; works with both `![[wikilink]]` syntax and raw HTML `<video>`/`<source>` blocks; the original local link is preserved in Obsidian
 - Multiple authentication methods: Application Passwords, XML-RPC, miniOrange, WordPress.com OAuth2
 - MathJax rendering (SVG or TeX passthrough)
 - Obsidian comment (`%%...%%`) handling
@@ -162,7 +162,7 @@ This fork was created because the original [obsidian-wordpress](https://github.c
 - Gutenberg block output with per-element block type mapping
 - Trailing `#hashtag` extraction and publishing as WordPress tags
 - Inline `#tag` deduplication with front matter tags
-- Local video file upload to the WordPress media library, published as native `wp:video` blocks
+- Local video file upload to the WordPress media library, published as native `wp:video` blocks; handles both `![[wikilink]]` syntax and raw HTML `<video>`/`<source>` blocks containing `file://` local paths
 
 ### Bug fixes
 - **Image upload silently skipped** when no editor pane was focused — the upload loop was incorrectly gated on `activeEditor` being non-null
