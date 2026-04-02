@@ -125,7 +125,7 @@ Both front matter tags and inline `#tags` are deduplicated before sending to Wor
 | **MathJax output** | SVG (rendered) or TeX passthrough for `$math$` expressions |
 | **Comment conversion** | Strip or convert `%%Obsidian comments%%` to HTML comments |
 | **Enable HTML** | Allow raw HTML tags in notes (disabled by default for security) |
-| **Replace media links** | After uploading images, rewrite local paths in the note to WordPress URLs using standard markdown syntax so images still display in Obsidian |
+| **Replace media links** | After uploading images, rewrite local paths in the note to WordPress URLs using standard markdown syntax so images still display in Obsidian. **Default: off.** Enable only if you want permanent links to the WordPress-hosted copy in your notes. |
 | **Gutenberg block output** | Wrap published HTML in Gutenberg block comments for native block editing in WordPress. Disable for Classic Editor sites |
 
 ---

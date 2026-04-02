@@ -93,7 +93,7 @@ export const DEFAULT_SETTINGS: WordpressPluginSettings = {
   mathJaxOutputType: MathJaxOutputType.SVG,
   commentConvertMode: CommentConvertMode.Ignore,
   enableHtml: false,
-  replaceMediaLinks: true,
+  replaceMediaLinks: false,
   useGutenbergBlocks: false,
 }
 

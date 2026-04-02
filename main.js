@@ -65130,7 +65130,7 @@ var DEFAULT_SETTINGS = {
   mathJaxOutputType: "svg" /* SVG */,
   commentConvertMode: "ignore" /* Ignore */,
   enableHtml: false,
-  replaceMediaLinks: true,
+  replaceMediaLinks: false,
   useGutenbergBlocks: false
 };
 async function upgradeSettings(existingSettings, to) {
