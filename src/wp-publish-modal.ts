@@ -190,17 +190,25 @@ export class WpPublishModal extends AbstractModal {
     if (params.postType === PostTypeConst.Post) {
       if (this.categories.items.length > 0) {
         new Setting(contentEl)
-          .setName(this.t('publishModal_category'))
-          .addDropdown((dropdown) => {
-            this.categories.items.forEach(it => {
-              dropdown.addOption(it.id, it.name);
-            });
-            dropdown
-              .setValue(String(params.categories[0]))
-              .onChange((value) => {
-                params.categories = [ toNumber(value) ];
-              });
+          .setName(this.t('publishModal_category'));
+
+        const catContainer = contentEl.createDiv({ cls: 'wp-categories-list' });
+        this.categories.items.forEach(category => {
+          const label = catContainer.createEl('label', { cls: 'wp-category-item' });
+          const checkbox = label.createEl('input', { type: 'checkbox' });
+          checkbox.checked = params.categories.includes(toNumber(category.id));
+          checkbox.addEventListener('change', () => {
+            const id = toNumber(category.id);
+            if (checkbox.checked) {
+              if (!params.categories.includes(id)) {
+                params.categories = [...params.categories, id];
+              }
+            } else {
+              params.categories = params.categories.filter(c => c !== id);
+            }
           });
+          label.createSpan({ text: category.name });
+        });
       }
     }
     new Setting(contentEl)

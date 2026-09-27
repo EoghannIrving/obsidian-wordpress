@@ -104,7 +104,7 @@
   "publishModal_commentStatus": "Comment Status",
   "publishModal_commentStatusOpen": "Open",
   "publishModal_commentStatusClosed": "Closed",
-  "publishModal_category": "Category",
+  "publishModal_category": "Categories",
   "publishModal_postType": "Post Type",
   "publishModal_publishButtonText": "Publish",
   "publishModal_wrongMatterDataForPage": "There are tags or categories in matter-data which are not allowed for page. Are you sure to delete these data?",

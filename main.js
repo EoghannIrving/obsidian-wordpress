@@ -72445,13 +72445,23 @@ var WpPublishModal = class extends AbstractModal {
     }
     if (params.postType === "post" /* Post */) {
       if (this.categories.items.length > 0) {
-        new import_obsidian4.Setting(contentEl).setName(this.t("publishModal_category")).addDropdown((dropdown) => {
-          this.categories.items.forEach((it) => {
-            dropdown.addOption(it.id, it.name);
+        new import_obsidian4.Setting(contentEl).setName(this.t("publishModal_category"));
+        const catContainer = contentEl.createDiv({ cls: "wp-categories-list" });
+        this.categories.items.forEach((category) => {
+          const label = catContainer.createEl("label", { cls: "wp-category-item" });
+          const checkbox = label.createEl("input", { type: "checkbox" });
+          checkbox.checked = params.categories.includes(toNumber_default(category.id));
+          checkbox.addEventListener("change", () => {
+            const id = toNumber_default(category.id);
+            if (checkbox.checked) {
+              if (!params.categories.includes(id)) {
+                params.categories = [...params.categories, id];
+              }
+            } else {
+              params.categories = params.categories.filter((c) => c !== id);
+            }
           });
-          dropdown.setValue(String(params.categories[0])).onChange((value) => {
-            params.categories = [toNumber_default(value)];
-          });
+          label.createSpan({ text: category.name });
         });
       }
     }
@@ -79656,7 +79666,7 @@ var publishModal_postDateTimeDesc = "With format YYYY-MM-DD or YYYY-MM-DD HH:MM:
 var publishModal_commentStatus = "Comment Status";
 var publishModal_commentStatusOpen = "Open";
 var publishModal_commentStatusClosed = "Closed";
-var publishModal_category = "Category";
+var publishModal_category = "Categories";
 var publishModal_postType = "Post Type";
 var publishModal_publishButtonText = "Publish";
 var publishModal_wrongMatterDataForPage = "There are tags or categories in matter-data which are not allowed for page. Are you sure to delete these data?";
@@ -80057,7 +80067,7 @@ var publishModal_postDateTimeDesc2 = "\u683C\u5F0F YYYY-MM-DD \u6216 YYYY-MM-DD 
 var publishModal_commentStatus2 = "\u8BC4\u8BBA\u72B6\u6001";
 var publishModal_commentStatusOpen2 = "\u5F00\u542F";
 var publishModal_commentStatusClosed2 = "\u5173\u95ED";
-var publishModal_category2 = "\u5206\u7C7B";
+var publishModal_category2 = "\u5206\u7C7B\uFF08\u53EF\u591A\u9009\uFF09";
 var publishModal_postType2 = "\u7C7B\u578B";
 var publishModal_publishButtonText2 = "\u53D1\u5E03";
 var publishModal_wrongMatterDataForPage2 = "\u5143\u6570\u636E\u4E2D\u5305\u542B\u4E86\u6807\u7B7E\u6216\u5206\u7C7B\uFF0Cpage \u7C7B\u578B\u4E0D\u5141\u8BB8\u8BE5\u6570\u636E\u3002\u786E\u5B9A\u8981\u5220\u9664\u8FD9\u4E9B\u6570\u636E\u5417\uFF1F";

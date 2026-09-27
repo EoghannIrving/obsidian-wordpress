@@ -104,7 +104,7 @@
   "publishModal_commentStatus": "评论状态",
   "publishModal_commentStatusOpen": "开启",
   "publishModal_commentStatusClosed": "关闭",
-  "publishModal_category": "分类",
+  "publishModal_category": "分类（可多选）",
   "publishModal_postType": "类型",
   "publishModal_publishButtonText": "发布",
   "publishModal_wrongMatterDataForPage": "元数据中包含了标签或分类，page 类型不允许该数据。确定要删除这些数据吗？",
